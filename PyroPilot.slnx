@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Firefly.Client/Firefly.Client.csproj" />
+    <Project Path="src/Firefly.Cli/Firefly.Cli.csproj" />
+    <Project Path="src/Firefly.MockDevice/Firefly.MockDevice.csproj" />
+    <Project Path="src/PyroPilot.Core/PyroPilot.Core.csproj" />
+    <Project Path="src/PyroPilot.App/PyroPilot.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="src/Firefly.Client.Tests/Firefly.Client.Tests.csproj" />
+    <Project Path="tests/PyroPilot.Core.Tests/PyroPilot.Core.Tests.csproj" />
+  </Folder>
+</Solution>

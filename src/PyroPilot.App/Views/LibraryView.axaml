@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PyroPilot.App.ViewModels"
+             xmlns:core="using:PyroPilot.Core.Model"
+             mc:Ignorable="d" d:DesignWidth="1220" d:DesignHeight="900"
+             x:Class="PyroPilot.App.Views.LibraryView"
+             x:DataType="vm:LibraryViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#FF7A00" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="320,*" Margin="24">
+
+        <StackPanel Grid.Column="0" Spacing="12" Margin="0,0,24,0">
+            <TextBlock Text="Firework Library" FontSize="22" FontWeight="Bold" />
+            <Button Content="+ New Firework" Command="{Binding NewCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" />
+            <ListBox ItemsSource="{Binding Fireworks}" SelectedItem="{Binding Selected}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:FireworkDefinition">
+                        <Grid ColumnDefinitions="12,*,Auto" Margin="0,4">
+                            <Border Grid.Column="0" Background="{Binding ColorHex}" CornerRadius="6" Height="28" Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Category}" FontSize="11" Opacity="0.7" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding DurationMs, StringFormat='{}{0} ms'}" VerticalAlignment="Center" Opacity="0.7" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+        <Border Grid.Column="1" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" CornerRadius="8" Padding="24" VerticalAlignment="Top">
+            <StackPanel Spacing="12" MaxWidth="480">
+                <TextBlock Text="Name" FontSize="12" Opacity="0.7" />
+                <TextBox Text="{Binding EditName}" />
+
+                <TextBlock Text="Category" FontSize="12" Opacity="0.7" />
+                <ComboBox ItemsSource="{Binding CommonCategories}" SelectedItem="{Binding EditCategory}" HorizontalAlignment="Stretch" />
+
+                <TextBlock Text="Duration (ms) -- how long the effect burns/lasts" FontSize="12" Opacity="0.7" />
+                <NumericUpDown Value="{Binding EditDurationMs}" Minimum="100" Maximum="600000" Increment="100" FormatString="0" />
+
+                <TextBlock Text="Timeline color" FontSize="12" Opacity="0.7" />
+                <TextBox Text="{Binding EditColorHex}" />
+
+                <TextBlock Text="Description" FontSize="12" Opacity="0.7" />
+                <TextBox Text="{Binding EditDescription}" AcceptsReturn="True" Height="80" TextWrapping="Wrap" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                    <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
+                    <Button Content="Delete" Command="{Binding DeleteCommand}" CommandParameter="{Binding Selected}" IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}" Classes="danger" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+
+</UserControl>

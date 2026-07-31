@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PyroPilot.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
+        x:Class="PyroPilot.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="PyroPilot"
+        Width="1440" Height="900"
+        MinWidth="1100" MinHeight="700"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid ColumnDefinitions="220,*">
+
+        <Border Grid.Column="0" Background="#14171C">
+            <DockPanel LastChildFill="False" Margin="0,16">
+                <StackPanel DockPanel.Dock="Top" Margin="16,0,16,24" Spacing="2">
+                    <TextBlock Text="PyroPilot" FontSize="20" FontWeight="Bold" Foreground="White" />
+                    <TextBlock Text="FireFly Plus Show Control" FontSize="11" Foreground="#8B93A1" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="8,0">
+                    <Button Content="Show Editor" Command="{Binding GoToShowEditorCommand}"
+                            HorizontalContentAlignment="Left" HorizontalAlignment="Stretch" Classes="NavButton" />
+                    <Button Content="Firework Library" Command="{Binding GoToLibraryCommand}"
+                            HorizontalContentAlignment="Left" HorizontalAlignment="Stretch" Classes="NavButton" />
+                    <Button Content="Devices &amp; Manual Fire" Command="{Binding GoToDevicesCommand}"
+                            HorizontalContentAlignment="Left" HorizontalAlignment="Stretch" Classes="NavButton" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" />
+
+    </Grid>
+
+    <Window.Styles>
+        <Style Selector="Button.NavButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#C7CCD6" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="Button.NavButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1F2530" />
+        </Style>
+    </Window.Styles>
+
+</Window>

@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PyroPilot.App.ViewModels"
+             xmlns:core="using:PyroPilot.Core.Model"
+             xmlns:conv="using:PyroPilot.App.Converters"
+             mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
+             x:Class="PyroPilot.App.Views.ShowEditorView"
+             x:DataType="vm:ShowEditorViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#FF7A00" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.transport">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.85" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="Border.trackRow">
+            <Setter Property="BorderBrush" Value="#FFFFFF14" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="Border.clip">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Opacity" Value="0.92" />
+        </Style>
+        <Style Selector="Border.clip:pointerover">
+            <Setter Property="Opacity" Value="1.0" />
+        </Style>
+        <Style Selector="Border.clipSelected">
+            <Setter Property="BorderBrush" Value="White" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="#14171C" Padding="16,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                    <TextBox Text="{Binding ShowName}" Width="240" />
+                    <Button Content="New" Click="OnNewShowClick" />
+                    <Button Content="Open..." Click="OnOpenShowClick" />
+                    <Button Content="Save" Click="OnSaveShowClick" Classes="accent" />
+                    <Button Content="Save As..." Click="OnSaveAsShowClick" />
+                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.75" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                    <CheckBox Content="LIVE FIRE" IsChecked="{Binding LiveFireEnabled}" Foreground="#F87171" FontWeight="Bold" />
+                    <Button Content="+ Fire Track" Command="{Binding AddFireTrackCommand}" />
+                    <Button Content="+ Audio Track" Command="{Binding AddAudioTrackCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main content -->
+        <Grid Grid.Row="1" ColumnDefinitions="240,*,300">
+
+            <!-- Firework palette -->
+            <Border Grid.Column="0" Background="#0F1115" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Drag onto a Fire track" Classes="sectionTitle" />
+                    <ListBox DockPanel.Dock="Top" ItemsSource="{Binding Library.Fireworks}" Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="core:FireworkDefinition">
+                                <Border Background="{Binding ColorHex}" CornerRadius="6" Padding="10,8" Margin="0,3"
+                                        PointerPressed="OnPaletteItemPointerPressed" Tag="{Binding}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White" />
+                                        <TextBlock Text="{Binding DurationMs, StringFormat='{}{0} ms'}" FontSize="11" Foreground="#FFFFFFCC" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Timeline -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto">
+                <ScrollViewer Grid.Row="0" Name="TimelineScroll"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <StackPanel Name="TracksStack">
+                            <Border Height="28" Background="#0F1115" BorderBrush="#FFFFFF14" BorderThickness="0,0,0,1">
+                                <Canvas Name="RulerCanvas" Width="{Binding TimelineWidthPx}" Height="28" Margin="150,0,0,0" />
+                            </Border>
+
+                            <ItemsControl ItemsSource="{Binding Tracks}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TrackViewModel">
+                                        <Border Classes="trackRow" Height="64">
+                                            <Grid ColumnDefinitions="150,*">
+                                                <Border Grid.Column="0" Background="{Binding ColorHex}" Opacity="0.18" />
+                                                <DockPanel Grid.Column="0" Margin="8,6" LastChildFill="False">
+                                                    <TextBox DockPanel.Dock="Top" Text="{Binding Name}" Background="Transparent" BorderThickness="0" Padding="2" FontWeight="SemiBold" />
+                                                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="4">
+                                                        <ToggleButton Content="Mute" IsChecked="{Binding Muted}" FontSize="10" Padding="4,2" />
+                                                        <Button Content="✕" FontSize="10" Padding="4,2" Click="OnRemoveTrackClick" Tag="{Binding}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <Canvas Grid.Column="1" Background="Transparent" Tag="{Binding}"
+                                                        Width="{Binding $parent[UserControl].((vm:ShowEditorViewModel)DataContext).TimelineWidthPx}"
+                                                        DragDrop.AllowDrop="True"
+                                                        DragDrop.DragEnter="OnTrackDragEnter" DragDrop.DragOver="OnTrackDragOver"
+                                                        DragDrop.DragLeave="OnTrackDragLeave" DragDrop.Drop="OnTrackDrop">
+                                                    <ItemsControl ItemsSource="{Binding Clips}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:ClipViewModel">
+                                                                <Border Classes="clip" Canvas.Left="{Binding LeftPx}" Width="{Binding WidthPx}" Height="56"
+                                                                        Background="{Binding ColorHex}" Tag="{Binding}"
+                                                                        PointerPressed="OnClipPointerPressed" PointerMoved="OnClipPointerMoved" PointerReleased="OnClipPointerReleased">
+                                                                    <Grid ColumnDefinitions="*,8">
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" Margin="6,4" FontSize="11" Foreground="White"
+                                                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Top" IsHitTestVisible="False" />
+                                                                        <Border Grid.Column="1" Background="#00000055" Cursor="SizeWestEast"
+                                                                                PointerPressed="OnResizeHandlePointerPressed" PointerMoved="OnResizeHandlePointerMoved" PointerReleased="OnResizeHandlePointerReleased" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <Canvas />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                </Canvas>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- Playhead overlay -->
+                        <Canvas IsHitTestVisible="False">
+                            <Rectangle Canvas.Left="{Binding PlayheadX}" Margin="150,0,0,0" Width="2" Height="4000" Fill="#EF4444" />
+                        </Canvas>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- Transport -->
+                <Border Grid.Row="1" Background="#14171C" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                        <Button Grid.Column="0" Content="&#9654;" Command="{Binding PlayCommand}" IsVisible="{Binding !IsPlaying}" Classes="transport accent" />
+                        <Button Grid.Column="0" Content="&#10074;&#10074;" Command="{Binding PauseCommand}" IsVisible="{Binding IsPlaying}" Classes="transport accent" />
+                        <Button Grid.Column="1" Content="&#9632;" Command="{Binding StopCommand}" Classes="transport" Margin="6,0,0,0" />
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="16,0" FontFamily="Consolas,monospace">
+                            <Run Text="{Binding CurrentTimeMs}" /><Run Text=" ms / " /><Run Text="{Binding TotalDurationMs}" /><Run Text=" ms" />
+                        </TextBlock>
+                        <Slider Grid.Column="3" Minimum="0" Maximum="{Binding TotalDurationMs}" Value="{Binding CurrentTimeMs}"
+                                VerticalAlignment="Center" PointerReleased="OnSeekSliderPointerReleased" Name="SeekSlider" />
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" Margin="16,0,0,0">
+                            <TextBlock Text="Zoom" VerticalAlignment="Center" FontSize="11" Opacity="0.7" />
+                            <Slider Minimum="10" Maximum="300" Value="{Binding ZoomPxPerSecond}" Width="120" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Right: preview + clip details -->
+            <Grid Grid.Column="2" RowDefinitions="240,*" Background="#0F1115">
+                <Border Grid.Row="0" Margin="12" Background="#000000" CornerRadius="8" ClipToBounds="True">
+                    <Canvas>
+                        <ItemsControl ItemsSource="{Binding Bursts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PreviewBurstViewModel">
+                                    <Ellipse Width="48" Height="48" Fill="{Binding ColorHex}" Opacity="{Binding Opacity}"
+                                             Canvas.Top="96" Canvas.Left="{Binding LaneX, Converter={x:Static conv:LaneXToPreviewLeftConverter.Instance}}"
+                                             RenderTransform="{Binding Scale, Converter={x:Static conv:ScaleValueConverter.Instance}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Canvas>
+                </Border>
+
+                <StackPanel Grid.Row="1" Margin="16,0,16,16" Spacing="10">
+                    <TextBlock Text="Selected Cue" Classes="sectionTitle" />
+
+                    <StackPanel IsVisible="{Binding SelectedFireCue, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="8">
+                        <TextBlock Text="Label" FontSize="11" Opacity="0.7" />
+                        <TextBox Text="{Binding SelectedFireCue.LabelText}" />
+                        <TextBlock Text="Device" FontSize="11" Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding Devices.Devices}" HorizontalAlignment="Stretch" SelectionChanged="OnCueDeviceSelectionChanged">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DeviceRowViewModel">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="Port" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedFireCue.Port}" Minimum="1" Maximum="60" FormatString="0" />
+                        <Button Content="Delete Cue" Command="{Binding RemoveSelectedClipCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,8,0,0" />
+                    </StackPanel>
+
+                    <StackPanel IsVisible="{Binding SelectedAudioClip, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="8">
+                        <TextBlock Text="{Binding SelectedAudioClip.Label}" FontWeight="SemiBold" />
+                        <Button Content="Remove Audio Clip" Command="{Binding RemoveSelectedClipCommand}" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" CornerRadius="8" Padding="12" Margin="0,16,0,0">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Audio track" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Text="Add an Audio track above, then click it to import a music file." FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                            <Button Content="Import Audio into Last Audio Track..." Click="OnImportAudioClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+
+</UserControl>
