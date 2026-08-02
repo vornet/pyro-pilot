@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\avalonia-logo.ico</ApplicationIcon>
+    <AssemblyName>PyroPilot</AssemblyName>
+    <Product>Pyro Pilot</Product>
+    <Authors>Pyro Pilot contributors</Authors>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,0 +1,86 @@
+name: Build Windows installer
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Installer version (for example, 1.2.3)
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-installer-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build-msi:
+    name: Build MSI
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Determine package version
+        id: version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          $rawVersion = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { $env:MANUAL_VERSION }
+          $rawVersion = $rawVersion.TrimStart('v')
+          if ($rawVersion -notmatch '^(?<version>\d+\.\d+\.\d+)(?:[-+].*)?$') {
+            throw "Release tag '$rawVersion' must look like v1.2.3 or 1.2.3."
+          }
+          "version=$($Matches.version)" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore PyroPilot.slnx
+
+      - name: Test
+        run: dotnet test PyroPilot.slnx --configuration Release --no-restore
+
+      - name: Publish Windows app
+        run: >-
+          dotnet publish src/PyroPilot.App/PyroPilot.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/publish
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:DebugType=None
+          -p:DebugSymbols=false
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          dotnet build installer/PyroPilot.Installer.wixproj `
+            --configuration Release `
+            -p:PublishDir="$pwd\artifacts\publish" `
+            -p:ProductVersion=${{ steps.version.outputs.version }} `
+            -p:OutputName=PyroPilot-${{ steps.version.outputs.version }}-win-x64 `
+            -p:OutputPath="$pwd\artifacts\installer"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyroPilot-${{ steps.version.outputs.version }}-win-x64
+          path: artifacts/installer/*.msi
+          if-no-files-found: error
+
+      - name: Attach MSI to release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ github.event.release.tag_name }}' artifacts/installer/*.msi --clobber

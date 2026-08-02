@@ -64,4 +64,15 @@ Deliberately out of scope for this first pass, in rough priority order:
 2. **macOS / Linux verification** -- Avalonia and the audio/show-format layers are cross-platform by design, but only Windows has been exercised so far. The one real platform-specific piece is `AudioPlaybackService` (NAudio's output backend is Windows-only); everything else should port with just testing.
 3. **3D show preview** -- the current preview panel is a flat 2D placeholder. It's structured as a swappable surface specifically so it can be replaced by a real-time 3D renderer (e.g. an embedded OpenGL/Skia viewport) without changing the playback engine that drives it.
 4. **Mesh device targeting** -- manual fire currently addresses a mesh network's broadcast address; picking a specific mesh device ID (via `GetMeshListAsync`) for per-device control is unwired in the UI.
-5. **Packaging** -- no installer/publish profile yet.
+5. **Installer signing** -- release tags automatically produce an MSI, but it is not yet code-signed. A trusted signing certificate is needed to avoid Windows SmartScreen warnings.
+
+## Windows releases
+
+Publishing a GitHub release with a tag such as `v1.2.3` runs the
+`Build Windows installer` workflow. It tests the solution, publishes a self-contained
+64-bit Windows build, packages it as an MSI, and attaches the MSI to the release.
+Users do not need to install .NET separately.
+
+Release tags must contain a three-part numeric version (`v1.2.3` or `1.2.3`). The
+workflow can also be run manually from the Actions tab; manual builds are retained as
+workflow artifacts but are not attached to a release.
