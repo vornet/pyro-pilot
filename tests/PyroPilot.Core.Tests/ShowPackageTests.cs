@@ -12,7 +12,12 @@ public class ShowPackageTests : IDisposable
     [Fact]
     public void SaveThenLoad_RoundTripsShowMetadataAndTracks()
     {
-        var firework = new FireworkDefinition { Name = "Golden Willow", DurationMs = 4500 };
+        var firework = new FireworkDefinition
+        {
+            Name = "Golden Willow",
+            DurationMs = 4500,
+            Effect = new FireworkEffect { Shape = BurstShape.Chrysanthemum, ParticleCount = 240 },
+        };
         var show = new Show
         {
             Name = "Fourth of July",
@@ -26,7 +31,17 @@ public class ShowPackageTests : IDisposable
                     Kind = TrackKind.Fire,
                     Clips =
                     [
-                        new FireCue { FireworkDefinitionId = firework.Id, Port = 3, StartMs = 1000, DurationMs = 4500, Label = "Opener" },
+                        new FireCue
+                        {
+                            FireworkDefinitionId = firework.Id,
+                            Port = 3,
+                            StartMs = 1000,
+                            DurationMs = 4500,
+                            Label = "Opener",
+                            LaunchPosition = new SpatialPoint { X = 12, Z = -4 },
+                            TiltDegrees = 8,
+                            SimulationSeed = 42,
+                        },
                     ],
                 },
                 new Track
@@ -48,10 +63,16 @@ public class ShowPackageTests : IDisposable
         Assert.Equal(2, loaded.Tracks.Count);
         Assert.Single(loaded.Library);
         Assert.Equal(firework.Name, loaded.Library[0].Name);
+        Assert.Equal(BurstShape.Chrysanthemum, loaded.Library[0].Effect.Shape);
+        Assert.Equal(240, loaded.Library[0].Effect.ParticleCount);
 
         var loadedCue = Assert.IsType<FireCue>(loaded.Tracks[0].Clips[0]);
         Assert.Equal(3, loadedCue.Port);
         Assert.Equal("Opener", loadedCue.Label);
+        Assert.Equal(12, loadedCue.LaunchPosition.X);
+        Assert.Equal(-4, loadedCue.LaunchPosition.Z);
+        Assert.Equal(8, loadedCue.TiltDegrees);
+        Assert.Equal(42, loadedCue.SimulationSeed);
 
         var loadedAudio = Assert.IsType<AudioClip>(loaded.Tracks[1].Clips[0]);
         Assert.Equal("song.mp3", loadedAudio.FileName);

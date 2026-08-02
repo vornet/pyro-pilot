@@ -5,6 +5,7 @@
              xmlns:vm="using:PyroPilot.App.ViewModels"
              xmlns:core="using:PyroPilot.Core.Model"
              xmlns:conv="using:PyroPilot.App.Converters"
+             xmlns:controls="using:PyroPilot.App.Controls"
              mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
              x:Class="PyroPilot.App.Views.ShowEditorView"
              x:DataType="vm:ShowEditorViewModel">
@@ -182,17 +183,8 @@
             <!-- Right: preview + clip details -->
             <Grid Grid.Column="2" RowDefinitions="240,*" Background="#0F1115">
                 <Border Grid.Row="0" Margin="12" Background="#000000" CornerRadius="8" ClipToBounds="True">
-                    <Canvas>
-                        <ItemsControl ItemsSource="{Binding Bursts}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:PreviewBurstViewModel">
-                                    <Ellipse Width="48" Height="48" Fill="{Binding ColorHex}" Opacity="{Binding Opacity}"
-                                             Canvas.Top="96" Canvas.Left="{Binding LaneX, Converter={x:Static conv:LaneXToPreviewLeftConverter.Instance}}"
-                                             RenderTransform="{Binding Scale, Converter={x:Static conv:ScaleValueConverter.Instance}}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Canvas>
+                    <controls:FireworksPreviewControl Show="{Binding PreviewShow}"
+                                                      CurrentTimeMs="{Binding CurrentTimeMs}" />
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="16,0,16,16" Spacing="10">

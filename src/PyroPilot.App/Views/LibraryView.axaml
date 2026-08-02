@@ -40,8 +40,9 @@
             </ListBox>
         </StackPanel>
 
-        <Border Grid.Column="1" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" CornerRadius="8" Padding="24" VerticalAlignment="Top">
-            <StackPanel Spacing="12" MaxWidth="480">
+        <Border Grid.Column="1" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}" CornerRadius="8" Padding="24">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="12" MaxWidth="760">
                 <TextBlock Text="Name" FontSize="12" Opacity="0.7" />
                 <TextBox Text="{Binding EditName}" />
 
@@ -57,11 +58,84 @@
                 <TextBlock Text="Description" FontSize="12" Opacity="0.7" />
                 <TextBox Text="{Binding EditDescription}" AcceptsReturn="True" Height="80" TextWrapping="Wrap" />
 
+                <Border Height="1" Background="#FFFFFF22" Margin="0,8" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Text="Particle Effect Layers" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="Layers emit from the shell break; delay creates secondary breaks." FontSize="11" Opacity="0.65" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="+ Add Layer" Command="{Binding AddLayerCommand}" />
+                </Grid>
+
+                <ListBox ItemsSource="{Binding EditLayers}" SelectedItem="{Binding SelectedLayer}" Height="120">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ParticleEffectLayerViewModel">
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="1" Text="{Binding Shape}" Opacity="0.7" Margin="12,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding DelaySeconds, StringFormat='{}{0:0.00}s'}" Opacity="0.7" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Grid IsVisible="{Binding SelectedLayer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
+                        <TextBlock Text="Layer name" FontSize="11" Opacity="0.7" />
+                        <TextBox Text="{Binding SelectedLayer.Name}" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="0">
+                        <TextBlock Text="Shape" FontSize="11" Opacity="0.7" />
+                        <ComboBox ItemsSource="{x:Static vm:ParticleEffectLayerViewModel.Shapes}" SelectedItem="{Binding SelectedLayer.Shape}" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="1">
+                        <TextBlock Text="Delay after break (seconds)" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.DelaySeconds}" Minimum="0" Maximum="20" Increment="0.05" FormatString="0.00" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Grid.Column="0">
+                        <TextBlock Text="Particle count" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.ParticleCount}" Minimum="1" Maximum="5000" Increment="10" FormatString="0" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Grid.Column="1">
+                        <TextBlock Text="Expansion speed (m/s)" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.Speed}" Minimum="0" Maximum="100" Increment="1" FormatString="0.0" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="3" Grid.Column="0">
+                        <TextBlock Text="Lifetime (seconds)" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.LifetimeSeconds}" Minimum="0.05" Maximum="20" Increment="0.1" FormatString="0.00" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="3" Grid.Column="1">
+                        <TextBlock Text="Colors (comma separated hex)" FontSize="11" Opacity="0.7" />
+                        <TextBox Text="{Binding SelectedLayer.ColorsText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" Grid.Column="0">
+                        <TextBlock Text="Trail samples" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.TrailSamples}" Minimum="0" Maximum="30" FormatString="0" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" Grid.Column="1">
+                        <TextBlock Text="Trail spacing (seconds)" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.TrailSpacingSeconds}" Minimum="0.005" Maximum="0.5" Increment="0.005" FormatString="0.000" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="5" Grid.Column="0">
+                        <TextBlock Text="Gravity" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.Gravity}" Minimum="-20" Maximum="30" Increment="0.25" FormatString="0.00" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="5" Grid.Column="1">
+                        <TextBlock Text="Twinkle amount" FontSize="11" Opacity="0.7" />
+                        <NumericUpDown Value="{Binding SelectedLayer.Twinkle}" Minimum="0" Maximum="4" Increment="0.1" FormatString="0.0" />
+                    </StackPanel>
+                </Grid>
+
+                <Button Content="Remove Selected Layer" Command="{Binding RemoveLayerCommand}" CommandParameter="{Binding SelectedLayer}"
+                        IsEnabled="{Binding SelectedLayer, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Left" />
+
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
                     <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
                     <Button Content="Delete" Command="{Binding DeleteCommand}" CommandParameter="{Binding Selected}" IsEnabled="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}" Classes="danger" />
                 </StackPanel>
             </StackPanel>
+          </ScrollViewer>
         </Border>
     </Grid>
 

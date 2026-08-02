@@ -29,6 +29,7 @@ public partial class ShowEditorViewModel : ViewModelBase
 
     public ObservableCollection<TrackViewModel> Tracks { get; } = [];
     public ObservableCollection<PreviewBurstViewModel> Bursts { get; } = [];
+    public Show PreviewShow => _workspace.Show;
 
     [ObservableProperty]
     private string _showName = "New Show";
@@ -102,11 +103,13 @@ public partial class ShowEditorViewModel : ViewModelBase
     private void RebuildFromWorkspace()
     {
         StopPlayback();
+        RepairMissingLibrarySnapshots();
         Tracks.Clear();
         foreach (Track t in _workspace.Show.Tracks) Tracks.Add(new TrackViewModel(t, _scale));
         ShowName = _workspace.Show.Name;
         FilePath = _workspace.FilePath;
         _loadedAudioFileName = null;
+        OnPropertyChanged(nameof(PreviewShow));
         NotifyDurationChanged();
     }
 
@@ -169,6 +172,7 @@ public partial class ShowEditorViewModel : ViewModelBase
             return false;
         }
 
+        EnsureLibrarySnapshot(firework);
         FireCueViewModel vm = track.AddFireCue(firework, startMs, deviceId: null, port: 1);
         SelectedClip = vm;
         _workspace.MarkDirty();
@@ -278,6 +282,65 @@ public partial class ShowEditorViewModel : ViewModelBase
 
         StatusMessage = null;
         return true;
+    }
+
+    private void RepairMissingLibrarySnapshots()
+    {
+        HashSet<Guid> referencedIds = _workspace.Show.Tracks
+            .SelectMany(track => track.Clips)
+            .OfType<FireCue>()
+            .Select(cue => cue.FireworkDefinitionId)
+            .ToHashSet();
+
+        foreach (Guid id in referencedIds)
+        {
+            if (_workspace.Show.Library.Any(item => item.Id == id)) continue;
+            FireworkDefinition? source = Library.Fireworks.FirstOrDefault(item => item.Id == id);
+            if (source is not null) EnsureLibrarySnapshot(source);
+        }
+    }
+
+    private void EnsureLibrarySnapshot(FireworkDefinition source)
+    {
+        if (_workspace.Show.Library.Any(item => item.Id == source.Id)) return;
+
+        FireworkEffect effect = source.Effect ?? new FireworkEffect();
+        _workspace.Show.Library.Add(new FireworkDefinition
+        {
+            Id = source.Id,
+            Name = source.Name,
+            Description = source.Description,
+            Category = source.Category,
+            DurationMs = source.DurationMs,
+            ColorHex = source.ColorHex,
+            Effect = new FireworkEffect
+            {
+                Shape = effect.Shape,
+                BurstTimeSeconds = effect.BurstTimeSeconds,
+                LaunchSpeed = effect.LaunchSpeed,
+                BurstSpeed = effect.BurstSpeed,
+                ParticleLifetimeSeconds = effect.ParticleLifetimeSeconds,
+                ParticleCount = effect.ParticleCount,
+                Gravity = effect.Gravity,
+                Drag = effect.Drag,
+                Colors = [.. effect.Colors],
+                Layers = effect.Layers.Select(layer => new ParticleEffectLayer
+                {
+                    Name = layer.Name,
+                    DelaySeconds = layer.DelaySeconds,
+                    Shape = layer.Shape,
+                    Speed = layer.Speed,
+                    LifetimeSeconds = layer.LifetimeSeconds,
+                    ParticleCount = layer.ParticleCount,
+                    Gravity = layer.Gravity,
+                    Drag = layer.Drag,
+                    TrailSamples = layer.TrailSamples,
+                    TrailSpacingSeconds = layer.TrailSpacingSeconds,
+                    Twinkle = layer.Twinkle,
+                    Colors = [.. layer.Colors],
+                }).ToList(),
+            },
+        });
     }
 
     [RelayCommand]

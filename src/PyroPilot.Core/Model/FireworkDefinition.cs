@@ -17,4 +17,10 @@ public sealed class FireworkDefinition
 
     /// <summary>Hex color (e.g. "#FF7A00") used for this firework's clips on the timeline.</summary>
     public string ColorHex { get; set; } = "#FF7A00";
+
+    /// <summary>
+    /// Parameters used by the visual preview. Kept with the library definition so a
+    /// product can have a reusable look without coupling the show model to a renderer.
+    /// </summary>
+    public FireworkEffect Effect { get; set; } = new();
 }

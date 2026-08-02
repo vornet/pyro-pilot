@@ -11,6 +11,7 @@ namespace PyroPilot.App.ViewModels;
 public partial class LibraryViewModel : ViewModelBase
 {
     public ObservableCollection<FireworkDefinition> Fireworks { get; } = [];
+    public ObservableCollection<ParticleEffectLayerViewModel> EditLayers { get; } = [];
     public string[] CommonCategories { get; } = ["Cake", "Shell", "Fountain", "Roman Candle", "Mine", "Uncategorized"];
 
     [ObservableProperty]
@@ -31,6 +32,9 @@ public partial class LibraryViewModel : ViewModelBase
     [ObservableProperty]
     private string? _editDescription;
 
+    [ObservableProperty]
+    private ParticleEffectLayerViewModel? _selectedLayer;
+
     public LibraryViewModel()
     {
         foreach (FireworkDefinition fw in FireworkLibraryStore.Load(AppPaths.LibraryFilePath))
@@ -46,6 +50,9 @@ public partial class LibraryViewModel : ViewModelBase
         EditDurationMs = 3000;
         EditColorHex = "#FF7A00";
         EditDescription = null;
+        EditLayers.Clear();
+        EditLayers.Add(new ParticleEffectLayerViewModel());
+        SelectedLayer = EditLayers[0];
     }
 
     [RelayCommand]
@@ -60,6 +67,7 @@ public partial class LibraryViewModel : ViewModelBase
                 DurationMs = EditDurationMs,
                 ColorHex = EditColorHex,
                 Description = EditDescription,
+                Effect = BuildEffect(),
             };
             Fireworks.Add(created);
             Selected = created;
@@ -71,6 +79,7 @@ public partial class LibraryViewModel : ViewModelBase
             Selected.DurationMs = EditDurationMs;
             Selected.ColorHex = EditColorHex;
             Selected.Description = EditDescription;
+            Selected.Effect = BuildEffect();
 
             // FireworkDefinition isn't a notifying type -- re-assigning through
             // the indexer forces the bound list's display to refresh for this item.
@@ -97,6 +106,56 @@ public partial class LibraryViewModel : ViewModelBase
         EditDurationMs = value.DurationMs;
         EditColorHex = value.ColorHex;
         EditDescription = value.Description;
+        EditLayers.Clear();
+        IEnumerable<ParticleEffectLayer> layers = value.Effect.Layers.Count > 0
+            ? value.Effect.Layers
+            : [new ParticleEffectLayer
+            {
+                Shape = value.Effect.Shape,
+                Speed = value.Effect.BurstSpeed,
+                LifetimeSeconds = value.Effect.ParticleLifetimeSeconds,
+                ParticleCount = value.Effect.ParticleCount,
+                Gravity = value.Effect.Gravity,
+                Drag = value.Effect.Drag,
+                Colors = value.Effect.Colors,
+            }];
+        foreach (ParticleEffectLayer layer in layers)
+            EditLayers.Add(ParticleEffectLayerViewModel.FromModel(layer));
+        SelectedLayer = EditLayers.FirstOrDefault();
+    }
+
+    [RelayCommand]
+    private void AddLayer()
+    {
+        var layer = new ParticleEffectLayerViewModel { Name = $"Layer {EditLayers.Count + 1}" };
+        EditLayers.Add(layer);
+        SelectedLayer = layer;
+    }
+
+    [RelayCommand]
+    private void RemoveLayer(ParticleEffectLayerViewModel? layer)
+    {
+        if (layer is null || EditLayers.Count <= 1) return;
+        int index = EditLayers.IndexOf(layer);
+        EditLayers.Remove(layer);
+        SelectedLayer = EditLayers[Math.Clamp(index, 0, EditLayers.Count - 1)];
+    }
+
+    private FireworkEffect BuildEffect()
+    {
+        List<ParticleEffectLayer> layers = EditLayers.Select(layer => layer.ToModel()).ToList();
+        ParticleEffectLayer primary = layers.FirstOrDefault() ?? new ParticleEffectLayer { Colors = [EditColorHex] };
+        return new FireworkEffect
+        {
+            Shape = primary.Shape,
+            BurstSpeed = primary.Speed,
+            ParticleLifetimeSeconds = primary.LifetimeSeconds,
+            ParticleCount = primary.ParticleCount,
+            Gravity = primary.Gravity,
+            Drag = primary.Drag,
+            Colors = primary.Colors.Length == 0 ? [EditColorHex] : primary.Colors,
+            Layers = layers,
+        };
     }
 
     private void Persist() => FireworkLibraryStore.Save(AppPaths.LibraryFilePath, Fireworks);
