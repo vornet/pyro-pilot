@@ -71,6 +71,13 @@ public partial class ShowEditorViewModel : ViewModelBase
 
     public FireCueViewModel? SelectedFireCue => SelectedClip as FireCueViewModel;
     public AudioClipViewModel? SelectedAudioClip => SelectedClip as AudioClipViewModel;
+    public DeviceRowViewModel? SelectedCueDevice
+    {
+        get => SelectedFireCue?.DeviceId is { } id
+            ? Devices.Devices.FirstOrDefault(device => device.Model.Id == id)
+            : null;
+        set => AssignDeviceToSelectedCue(value);
+    }
 
     public ShowEditorViewModel(
         ShowWorkspaceService workspace,
@@ -109,6 +116,7 @@ public partial class ShowEditorViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(SelectedFireCue));
         OnPropertyChanged(nameof(SelectedAudioClip));
+        OnPropertyChanged(nameof(SelectedCueDevice));
     }
 
     partial void OnZoomPxPerSecondChanged(double value)
@@ -213,6 +221,7 @@ public partial class ShowEditorViewModel : ViewModelBase
     {
         if (SelectedFireCue is null) return;
         SelectedFireCue.DeviceId = row?.Model.Id;
+        OnPropertyChanged(nameof(SelectedCueDevice));
         _workspace.MarkDirty();
     }
 
@@ -234,11 +243,41 @@ public partial class ShowEditorViewModel : ViewModelBase
     private void Play()
     {
         if (IsPlaying) return;
+        if (LiveFireEnabled && !ValidateLiveFireCues()) return;
+
         EnsureAudioLoadedForPlayback();
         _audio.PlayFrom(TimeSpan.FromMilliseconds(CurrentTimeMs));
         _lastTickUtc = DateTime.UtcNow;
         _timer.Start();
         IsPlaying = true;
+    }
+
+    private bool ValidateLiveFireCues()
+    {
+        IEnumerable<FireCueViewModel> upcomingCues = Tracks
+            .Where(track => track.Kind == TrackKind.Fire && !track.Muted)
+            .SelectMany(track => track.Clips.OfType<FireCueViewModel>())
+            .Where(cue => cue.StartMs >= CurrentTimeMs);
+
+        foreach (FireCueViewModel cue in upcomingCues)
+        {
+            if (cue.DeviceId is not { } deviceId)
+            {
+                SelectedClip = cue;
+                StatusMessage = $"LIVE FIRE NOT STARTED: Assign a device to '{cue.Label}'.";
+                return false;
+            }
+
+            if (!_registry.TryGet(deviceId, out _))
+            {
+                SelectedClip = cue;
+                StatusMessage = $"LIVE FIRE NOT STARTED: The device for '{cue.Label}' is not connected.";
+                return false;
+            }
+        }
+
+        StatusMessage = null;
+        return true;
     }
 
     [RelayCommand]
@@ -338,7 +377,9 @@ public partial class ShowEditorViewModel : ViewModelBase
         try
         {
             bool ok = await session.ManualFireAsync(cue.Port);
-            if (!ok) StatusMessage = $"LIVE FIRE FAILED: {cue.Label} (port {cue.Port})";
+            StatusMessage = ok
+                ? $"LIVE FIRE SENT: {cue.Label} (port {cue.Port})"
+                : $"LIVE FIRE FAILED: {cue.Label} (port {cue.Port})";
         }
         catch (Exception ex)
         {
