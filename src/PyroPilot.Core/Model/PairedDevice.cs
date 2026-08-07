@@ -22,6 +22,12 @@ public sealed class PairedDevice
     public string Host { get; set; } = "192.168.8.1";
     public int Port { get; set; } = 7008;
 
+    /// <summary>Join the standard TitanFire access point before opening the device socket.</summary>
+    public bool JoinTitanFireWifi { get; set; }
+
+    /// <summary>Reconnect this device when PyroPilot starts.</summary>
+    public bool AutoConnect { get; set; }
+
     /// <summary>Mesh device id (from the mesh list), null/unused for <see cref="DeviceProtocol.Single"/>.</summary>
     public ushort? MeshDeviceId { get; set; }
 

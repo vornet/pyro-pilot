@@ -9,6 +9,30 @@ namespace Firefly.Client.Protocol.Mesh;
 /// </summary>
 public static partial class MeshResponseParser
 {
+    public const int PortCount = 15;
+
+    /// <summary>
+    /// Decodes the two-byte PORT_STATUS payload verified against a real
+    /// FireFly mesh device. The payload is a big-endian 16-bit mask: bit 0 is
+    /// reserved and always set in the observed responses, while bit N reports
+    /// continuity for physical port N (1 through 15).
+    /// </summary>
+    public static IReadOnlyList<int> ParseConnectedPorts(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length != 2)
+            throw new FireflyProtocolException(
+                $"Expected a 2-byte mesh PORT_STATUS payload, got {payload.Length} byte(s).");
+
+        ushort mask = (ushort)((payload[0] << 8) | payload[1]);
+        var connected = new List<int>(PortCount);
+        for (int port = 1; port <= PortCount; port++)
+        {
+            if ((mask & (1 << port)) != 0) connected.Add(port);
+        }
+
+        return connected;
+    }
+
     /// <summary>
     /// Extracts mesh device IDs from a MESH_LIST response payload (the frame's
     /// <see cref="MeshFrame.Data"/>, header already stripped). Ported from the

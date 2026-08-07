@@ -52,7 +52,7 @@ Everything in `Protocol.Mesh.MeshCommandBuilder` and
 the literal hex strings hardcoded in the original app** (see
 `Firefly.Client.Tests`) — that part isn't guesswork, it's a faithful port.
 
-Two things are best-effort reconstructions, not confirmed against real
+The following details are best-effort reconstructions, not confirmed against real
 hardware (not everything about the app's internals could be fully resolved
 from analysis, and the app itself relies on some fragile assumptions like
 polling `available()`):
@@ -66,20 +66,18 @@ polling `available()`):
    matters for `GetStatusAsync()`, which probably needs more than a 1-byte
    result to describe 15 ports' state. Validate against a real device before
    relying on anything beyond `IsSuccess`.
-2. **Mesh `PORT_STATUS` per-port breakdown.** `GetPortStatusAsync` gives you a
-   validated, checksummed `MeshResponse` with the raw payload in `.Data`, but
-   this library doesn't attempt to decode individual port bits within it —
-   the app's own handling of this response is entangled with UI/retry state
-   that wasn't worth porting faithfully. `MeshResponseParser` covers the
-   fields that *were* cleanly recoverable (device list, battery, firmware
-   date).
-3. **V3 login's trailing byte.** The app's WiFi login path sends
+2. **V3 login's trailing byte.** The app's WiFi login path sends
    `AA 05 01 00 00 00 01 04` — one byte longer than its plain BLE-style login
    command alone produces (that 7-byte form is only what the app's *BLE*
    login path uses), and the frame's own length byte doesn't account for the
    extra byte. `SingleCommandBuilder.Login()` reproduces the 8-byte WiFi form
    since that's what a real device receives, but the trailing byte's purpose
    isn't documented anywhere in the app.
+
+The mesh `PORT_STATUS` payload has since been verified against real hardware.
+It is a big-endian 16-bit mask: bit 0 is a reserved always-on status bit, and
+bit N reports fuse/igniter continuity for physical port N (1 through 15).
+Use `MeshResponseParser.ParseConnectedPorts(response.Data)` to decode it.
 
 Everything else (login, mesh list, manual fire, auto-fire start/stop, cue/plan
 write & start/clear/delete, flash LED, modify SSID/password, device info) is

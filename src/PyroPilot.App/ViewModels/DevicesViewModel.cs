@@ -3,12 +3,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PyroPilot.App.Services;
 using PyroPilot.Core.Model;
+using PyroPilot.Core.Persistence;
 
 namespace PyroPilot.App.ViewModels;
 
 public partial class DevicesViewModel : ViewModelBase
 {
     private readonly DeviceSessionRegistry _registry;
+    private readonly ITitanFireWifiService _wifi;
 
     public ObservableCollection<DeviceRowViewModel> Devices { get; } = [];
     public DeviceProtocol[] ProtocolOptions { get; } = Enum.GetValues<DeviceProtocol>();
@@ -28,9 +30,12 @@ public partial class DevicesViewModel : ViewModelBase
     [ObservableProperty]
     private int _newPortCount = 15;
 
-    public DevicesViewModel(DeviceSessionRegistry registry)
+    public DevicesViewModel(DeviceSessionRegistry registry, ITitanFireWifiService wifi)
     {
         _registry = registry;
+        _wifi = wifi;
+        foreach (PairedDevice device in PairedDeviceStore.Load(AppPaths.DevicesFilePath))
+            Devices.Add(CreateRow(device));
     }
 
     partial void OnNewProtocolChanged(DeviceProtocol value)
@@ -51,7 +56,7 @@ public partial class DevicesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void AddDevice()
+    private async Task AddDeviceAsync()
     {
         var model = new PairedDevice
         {
@@ -60,8 +65,13 @@ public partial class DevicesViewModel : ViewModelBase
             Host = NewHost,
             Port = NewPort,
             PortCount = Math.Clamp(NewPortCount, 1, 60),
+            JoinTitanFireWifi = NewProtocol == DeviceProtocol.Mesh,
+            AutoConnect = true,
         };
-        Devices.Add(new DeviceRowViewModel(model, _registry));
+        DeviceRowViewModel row = CreateRow(model);
+        Devices.Add(row);
+        Persist();
+        await row.ConnectCommand.ExecuteAsync(null);
     }
 
     [RelayCommand]
@@ -69,5 +79,16 @@ public partial class DevicesViewModel : ViewModelBase
     {
         await row.DisconnectCommand.ExecuteAsync(null);
         Devices.Remove(row);
+        Persist();
     }
+
+    public async Task AutoConnectAsync()
+    {
+        foreach (DeviceRowViewModel row in Devices.Where(row => row.Model.AutoConnect))
+            await row.ConnectCommand.ExecuteAsync(null);
+    }
+
+    private DeviceRowViewModel CreateRow(PairedDevice model) => new(model, _registry, _wifi);
+
+    private void Persist() => PairedDeviceStore.Save(AppPaths.DevicesFilePath, Devices.Select(row => row.Model));
 }

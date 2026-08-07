@@ -144,7 +144,10 @@ public sealed class MeshMockServer
                 break;
 
             case MeshCommand.PortStatus:
-                data = new byte[MeshCommandBuilder.PortCount];
+                // Big-endian 16-bit continuity mask. Bit 0 is the reserved
+                // always-on status bit; bits 1-15 correspond to ports 1-15.
+                // The mock starts with no fuses connected.
+                data = [0x00, 0x01];
                 break;
 
             case MeshCommand.ManualFire:

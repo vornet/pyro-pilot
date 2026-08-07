@@ -17,4 +17,13 @@ public interface IDeviceSession : IAsyncDisposable
 
     /// <returns>True if the device acknowledged the fire command.</returns>
     Task<bool> ManualFireAsync(int port, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Attempts a non-blocking continuity read. Returns null when this
+    /// protocol does not have a verified decoder, the device is busy with a
+    /// higher-priority operation, or the status response is invalid.
+    /// </summary>
+    Task<PortContinuityStatus?> TryReadPortContinuityAsync(CancellationToken cancellationToken = default);
 }
+
+public sealed record PortContinuityStatus(IReadOnlySet<int> ConnectedPorts);

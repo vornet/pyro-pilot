@@ -5,6 +5,28 @@ namespace Firefly.Client.Tests.Protocol.Mesh;
 
 public class MeshResponseParserTests
 {
+    [Theory]
+    [InlineData("0001", new int[0])]
+    [InlineData("0003", new[] { 1 })]
+    [InlineData("0005", new[] { 2 })]
+    [InlineData("8003", new[] { 1, 15 })]
+    public void ParseConnectedPorts_DecodesHardwareCaptures(string hex, int[] expected)
+    {
+        byte[] payload = Convert.FromHexString(hex);
+
+        Assert.Equal(expected, MeshResponseParser.ParseConnectedPorts(payload));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void ParseConnectedPorts_RejectsUnexpectedPayloadLength(int length)
+    {
+        Assert.Throws<FireflyProtocolException>(
+            () => MeshResponseParser.ParseConnectedPorts(new byte[length]));
+    }
+
     [Fact]
     public void ParseMeshDeviceIds_ExtractsIdsAtStrideFiveOffsets()
     {

@@ -14,8 +14,13 @@ namespace PyroPilot.App.ViewModels;
 /// </summary>
 public partial class DeviceRowViewModel : ViewModelBase
 {
+    private static readonly TimeSpan ContinuityPollInterval = TimeSpan.FromMilliseconds(500);
+
     private readonly DeviceSessionRegistry _registry;
+    private readonly ITitanFireWifiService _wifi;
     private IDeviceSession? _session;
+    private CancellationTokenSource? _continuityPollingCts;
+    private Task? _continuityPollingTask;
 
     public PairedDevice Model { get; }
     public ObservableCollection<PortButtonViewModel> Ports { get; }
@@ -33,10 +38,11 @@ public partial class DeviceRowViewModel : ViewModelBase
     [ObservableProperty]
     private PortButtonViewModel? _armedPort;
 
-    public DeviceRowViewModel(PairedDevice model, DeviceSessionRegistry registry)
+    public DeviceRowViewModel(PairedDevice model, DeviceSessionRegistry registry, ITitanFireWifiService wifi)
     {
         Model = model;
         _registry = registry;
+        _wifi = wifi;
         Ports = new ObservableCollection<PortButtonViewModel>(
             Enumerable.Range(1, model.PortCount).Select(n => new PortButtonViewModel(n)));
     }
@@ -47,25 +53,53 @@ public partial class DeviceRowViewModel : ViewModelBase
         if (IsBusy || IsConnected) return;
         IsBusy = true;
         StatusText = "Connecting...";
+        IDeviceSession? pendingSession = null;
         try
         {
-            IDeviceSession session = DeviceSessionFactory.Create(Model);
-            await session.ConnectAsync();
-            bool loggedIn = await session.LoginAsync();
+            if (Model.JoinTitanFireWifi)
+            {
+                StatusText = $"Joining {TitanFireWifiService.Ssid} Wi-Fi...";
+                await _wifi.EnsureConnectedAsync();
+                StatusText = "Connecting to device...";
+            }
+
+            pendingSession = DeviceSessionFactory.Create(Model);
+            await pendingSession.ConnectAsync();
+            bool loggedIn = await pendingSession.LoginAsync();
             if (!loggedIn)
             {
                 StatusText = "Login failed -- check the device is powered on and the host is on its WiFi network.";
-                await session.DisposeAsync();
+                await pendingSession.DisposeAsync();
+                pendingSession = null;
                 return;
             }
 
-            _session = session;
+            _session = pendingSession;
+            pendingSession = null;
             IsConnected = true;
             StatusText = "Connected.";
-            _registry.Register(Model.Id, session);
+            _registry.Register(Model.Id, _session);
+
+            // Mesh continuity decoding is hardware-verified. Read it once
+            // immediately, then keep it current in the background.
+            if (Model.Protocol == DeviceProtocol.Mesh)
+            {
+                try
+                {
+                    PortContinuityStatus? continuity = await _session.TryReadPortContinuityAsync();
+                    if (continuity is not null) ApplyContinuity(continuity);
+                }
+                catch (Exception ex)
+                {
+                    StatusText = $"Connected; fuse status unavailable: {ex.Message}";
+                }
+
+                StartContinuityPolling(_session);
+            }
         }
         catch (Exception ex)
         {
+            if (pendingSession is not null) await pendingSession.DisposeAsync();
             StatusText = $"Connection failed: {ex.Message}";
         }
         finally
@@ -77,6 +111,7 @@ public partial class DeviceRowViewModel : ViewModelBase
     [RelayCommand]
     private async Task DisconnectAsync()
     {
+        await StopContinuityPollingAsync();
         _registry.Unregister(Model.Id);
         if (_session is not null)
         {
@@ -93,6 +128,8 @@ public partial class DeviceRowViewModel : ViewModelBase
     [RelayCommand]
     private void ArmPort(PortButtonViewModel port)
     {
+        if (!port.IsFuseConnected) return;
+
         if (ArmedPort == port)
         {
             port.IsArmed = false;
@@ -116,7 +153,10 @@ public partial class DeviceRowViewModel : ViewModelBase
         {
             bool ok = await _session.ManualFireAsync(port.Number);
             StatusText = ok ? $"Fired port {port.Number}." : $"Port {port.Number} FAILED to fire.";
-            if (ok) port.LastFiredUtc = DateTimeOffset.UtcNow;
+            if (ok)
+            {
+                port.LastFiredUtc = DateTimeOffset.UtcNow;
+            }
         }
         catch (Exception ex)
         {
@@ -130,9 +170,79 @@ public partial class DeviceRowViewModel : ViewModelBase
         }
     }
 
+    private void StartContinuityPolling(IDeviceSession session)
+    {
+        _continuityPollingCts = new CancellationTokenSource();
+        _continuityPollingTask = PollContinuityAsync(session, _continuityPollingCts.Token);
+    }
+
+    private async Task StopContinuityPollingAsync()
+    {
+        CancellationTokenSource? cts = _continuityPollingCts;
+        Task? task = _continuityPollingTask;
+        _continuityPollingCts = null;
+        _continuityPollingTask = null;
+
+        if (cts is null) return;
+        cts.Cancel();
+        try
+        {
+            if (task is not null) await task;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when disconnecting.
+        }
+        finally
+        {
+            cts.Dispose();
+        }
+    }
+
+    private async Task PollContinuityAsync(IDeviceSession session, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(ContinuityPollInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            try
+            {
+                PortContinuityStatus? continuity = await session.TryReadPortContinuityAsync(cancellationToken);
+                if (continuity is not null) ApplyContinuity(continuity);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                // A transient status failure leaves the most recent known
+                // continuity state intact. The next interval retries.
+            }
+        }
+    }
+
+    private void ApplyContinuity(PortContinuityStatus continuity)
+    {
+        foreach (PortButtonViewModel port in Ports)
+            port.IsFuseConnected = continuity.ConnectedPorts.Contains(port.Number);
+
+        if (ArmedPort is not null && !ArmedPort.IsFuseConnected)
+        {
+            ArmedPort.IsArmed = false;
+            ArmedPort = null;
+        }
+    }
+
     private bool CanFireArmedPort() => IsConnected && ArmedPort is not null && !IsBusy;
 
     partial void OnArmedPortChanged(PortButtonViewModel? value) => FireArmedPortCommand.NotifyCanExecuteChanged();
-    partial void OnIsConnectedChanged(bool value) => FireArmedPortCommand.NotifyCanExecuteChanged();
-    partial void OnIsBusyChanged(bool value) => FireArmedPortCommand.NotifyCanExecuteChanged();
+    partial void OnIsConnectedChanged(bool value)
+    {
+        FireArmedPortCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        FireArmedPortCommand.NotifyCanExecuteChanged();
+    }
 }

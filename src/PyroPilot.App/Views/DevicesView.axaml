@@ -27,6 +27,9 @@
         <Style Selector="Button.port.armed">
             <Setter Property="Background" Value="#C2410C" />
         </Style>
+        <Style Selector="Button.port:disabled">
+            <Setter Property="Opacity" Value="0.35" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel Margin="24">
@@ -40,7 +43,7 @@
                     <TextBox Grid.Column="2" PlaceholderText="Host / IP" Text="{Binding NewHost}" />
                     <NumericUpDown Grid.Column="3" Value="{Binding NewPort}" Minimum="1" Maximum="65535" FormatString="0" />
                     <NumericUpDown Grid.Column="4" Value="{Binding NewPortCount}" Minimum="1" Maximum="60" FormatString="0" />
-                    <Button Grid.Column="5" Content="Add Device" Command="{Binding AddDeviceCommand}" Classes="accent" />
+                    <Button Grid.Column="5" Content="Add &amp; Connect" Command="{Binding AddDeviceCommand}" Classes="accent" />
                 </Grid>
             </Border>
         </StackPanel>
@@ -67,7 +70,10 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:PortButtonViewModel">
-                                            <Button Classes="port" Classes.armed="{Binding IsArmed}" Click="OnPortButtonClick">
+                                            <Button Classes="port"
+                                                    Classes.armed="{Binding IsArmed}"
+                                                    IsEnabled="{Binding IsFuseConnected}"
+                                                    Click="OnPortButtonClick">
                                                 <TextBlock Text="{Binding Number}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" />
                                             </Button>
                                         </DataTemplate>

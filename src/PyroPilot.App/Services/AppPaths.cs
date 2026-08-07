@@ -8,6 +8,8 @@ public static class AppPaths
 
     public static string LibraryFilePath => Path.Combine(DataDirectory, "library.json");
 
+    public static string DevicesFilePath => Path.Combine(DataDirectory, "devices.json");
+
     public static string AudioCacheDirectory => Path.Combine(DataDirectory, "audio-cache");
 
     public static void EnsureDirectoriesExist()

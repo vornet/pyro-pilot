@@ -21,10 +21,11 @@ public partial class App : Application
             AppPaths.EnsureDirectoriesExist();
 
             var registry = new DeviceSessionRegistry();
+            var wifi = new TitanFireWifiService();
             var workspace = new ShowWorkspaceService();
             var audio = new AudioPlaybackService();
 
-            var devices = new DevicesViewModel(registry);
+            var devices = new DevicesViewModel(registry, wifi);
             var library = new LibraryViewModel();
             var showEditor = new ShowEditorViewModel(workspace, registry, audio, library, devices);
 
@@ -32,6 +33,8 @@ public partial class App : Application
             {
                 DataContext = new MainViewModel(devices, library, showEditor),
             };
+
+            desktop.MainWindow.Opened += async (_, _) => await devices.AutoConnectAsync();
 
             desktop.ShutdownRequested += (_, _) => audio.Dispose();
         }
