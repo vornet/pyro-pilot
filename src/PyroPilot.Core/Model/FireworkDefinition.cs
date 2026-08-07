@@ -8,6 +8,12 @@ namespace PyroPilot.Core.Model;
 public sealed class FireworkDefinition
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>Revision of the approved community entry this definition came from, if any.</summary>
+    public int? CommunityRevision { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? ProductCode { get; set; }
+    public string? Upc { get; set; }
+    public string? SourceUrl { get; set; }
     public string Name { get; set; } = "New Firework";
     public string? Description { get; set; }
     public string Category { get; set; } = "Uncategorized";
