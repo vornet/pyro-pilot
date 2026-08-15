@@ -14,6 +14,11 @@ public sealed class FireworkDefinition
     public string? ProductCode { get; set; }
     public string? Upc { get; set; }
     public string? SourceUrl { get; set; }
+    /// <summary>Optional product/effect image embedded as bytes so library and show snapshots remain portable.</summary>
+    public byte[]? PreviewImageData { get; set; }
+    public string? PreviewImageFileName { get; set; }
+    /// <summary>Optional YouTube or other web video showing the real product.</summary>
+    public string? VideoUrl { get; set; }
     public string Name { get; set; } = "New Firework";
     public string? Description { get; set; }
     public string Category { get; set; } = "Uncategorized";

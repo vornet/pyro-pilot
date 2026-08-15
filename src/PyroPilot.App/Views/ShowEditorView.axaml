@@ -5,7 +5,6 @@
              xmlns:vm="using:PyroPilot.App.ViewModels"
              xmlns:core="using:PyroPilot.Core.Model"
              xmlns:conv="using:PyroPilot.App.Converters"
-             xmlns:controls="using:PyroPilot.App.Controls"
              mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="900"
              x:Class="PyroPilot.App.Views.ShowEditorView"
              x:DataType="vm:ShowEditorViewModel">
@@ -183,8 +182,19 @@
             <!-- Right: preview + clip details -->
             <Grid Grid.Column="2" RowDefinitions="240,*" Background="#0F1115">
                 <Border Grid.Row="0" Margin="12" Background="#000000" CornerRadius="8" ClipToBounds="True">
-                    <controls:FireworksPreviewControl Show="{Binding PreviewShow}"
-                                                      CurrentTimeMs="{Binding CurrentTimeMs}" />
+                    <Grid>
+                        <Image Source="{Binding ActivePreviewImage}" Stretch="Uniform" Margin="6"
+                               IsVisible="{Binding HasActivePreviewImage}" />
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6"
+                                    IsVisible="{Binding !HasActivePreviewImage}">
+                            <TextBlock Text="{Binding ActivePreviewLabel}" HorizontalAlignment="Center" Opacity="0.7" />
+                            <TextBlock Text="Add a picture in the Firework Library"
+                                       FontSize="10" HorizontalAlignment="Center" Opacity="0.45" />
+                        </StackPanel>
+                        <Border VerticalAlignment="Bottom" Background="#A0000000" Padding="8,5">
+                            <TextBlock Text="{Binding ActivePreviewLabel}" FontSize="11" />
+                        </Border>
+                    </Grid>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="16,0,16,16" Spacing="10">

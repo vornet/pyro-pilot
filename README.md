@@ -49,10 +49,10 @@ Point the app's device connection form (or `firefly-cli --host 127.0.0.1 --tcp-p
 ## Features
 
 - **Manual fire** -- connect to a device (mesh or single-device protocol), see its ports as a grid, arm a port then confirm to fire it (a deliberate two-step interaction, not a single click, given this drives real pyrotechnics).
-- **Firework library** -- a reusable catalog of firework "products" (name, burn duration, category, timeline color), stored locally and snapshotted into each show that uses them.
+- **Firework media library** -- a reusable product catalog with an embedded reference image and optional YouTube video URL. Image bytes are stored with the definition, so they remain available in portable show snapshots.
 - **Show timeline** -- video-editor-style multi-track canvas: drag a firework from the library onto a Fire track to place a cue, drag to move it, drag its edge to resize it. Multiple tracks let overlapping effects fire together; clips within one track can't overlap (so a track behaves like a single output lane).
 - **Audio track** -- import a music file onto an Audio track; it plays back in sync with the timeline during preview.
-- **Show preview** -- transport controls (play/pause/stop/scrub/zoom) drive a playhead and a simple animated preview of which cues are firing. The preview surface is intentionally a thin, swappable panel (see [Roadmap](#roadmap)) rather than baked into the playback engine, so a real 3D renderer can replace it later without touching timeline/transport logic.
+- **Show preview** -- transport controls (play/pause/stop/scrub/zoom) display the reference image for each active firework cue.
 - **Live fire from the timeline** -- an explicit "LIVE FIRE" toggle lets a cue's scheduled time actually trigger `ManualFireAsync` on its assigned device/port during playback, turning the timeline into a real show controller rather than just an editor. Off by default.
 - **Save / load shows** -- a show saves as a single portable `.pyroshow` file (a zip containing `show.json` plus copies of any audio it references), so moving or sharing a show doesn't leave audio behind.
 
@@ -62,7 +62,7 @@ Deliberately out of scope for this first pass, in rough priority order:
 
 1. **Bluetooth LE** -- `Firefly.Client` only implements the WiFi/TCP transport today. The V3 single-device wire format is the same one the original app uses over classic BLE, so adding a `IFireflyTransport` implementation per OS (WinRT Bluetooth on Windows, CoreBluetooth on macOS, BlueZ on Linux) is the natural extension point rather than a rewrite.
 2. **macOS / Linux verification** -- Avalonia and the audio/show-format layers are cross-platform by design, but only Windows has been exercised so far. The one real platform-specific piece is `AudioPlaybackService` (NAudio's output backend is Windows-only); everything else should port with just testing.
-3. **3D show preview** -- the current preview panel is a flat 2D placeholder. It's structured as a swappable surface specifically so it can be replaced by a real-time 3D renderer (e.g. an embedded OpenGL/Skia viewport) without changing the playback engine that drives it.
+3. **3D show preview** -- revisit particle simulation and atmospheric rendering after the media-first authoring workflow is established.
 4. **Mesh device targeting** -- manual fire currently addresses a mesh network's broadcast address; picking a specific mesh device ID (via `GetMeshListAsync`) for per-device control is unwired in the UI.
 5. **Installer signing** -- release tags automatically produce an MSI, but it is not yet code-signed. A trusted signing certificate is needed to avoid Windows SmartScreen warnings.
 

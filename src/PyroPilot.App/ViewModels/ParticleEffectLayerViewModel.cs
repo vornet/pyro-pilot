@@ -18,7 +18,17 @@ public partial class ParticleEffectLayerViewModel : ViewModelBase
     [ObservableProperty] private int _trailSamples = 5;
     [ObservableProperty] private float _trailSpacingSeconds = 0.045f;
     [ObservableProperty] private float _twinkle;
+    [ObservableProperty] private float _sparkSize = 0.17f;
+    [ObservableProperty] private float _trailSize = 0.032f;
     [ObservableProperty] private string _colorsText = "#FF7A00";
+    [ObservableProperty] private float _timelineOriginSeconds = 1.8f;
+
+    public double TimelineLeftPx => (TimelineOriginSeconds + DelaySeconds) * 100d;
+    public double TimelineWidthPx => Math.Max(20d, LifetimeSeconds * 100d);
+
+    partial void OnDelaySecondsChanged(float value) => OnPropertyChanged(nameof(TimelineLeftPx));
+    partial void OnLifetimeSecondsChanged(float value) => OnPropertyChanged(nameof(TimelineWidthPx));
+    partial void OnTimelineOriginSecondsChanged(float value) => OnPropertyChanged(nameof(TimelineLeftPx));
 
     public static ParticleEffectLayerViewModel FromModel(ParticleEffectLayer layer) => new()
     {
@@ -33,6 +43,8 @@ public partial class ParticleEffectLayerViewModel : ViewModelBase
         TrailSamples = layer.TrailSamples,
         TrailSpacingSeconds = layer.TrailSpacingSeconds,
         Twinkle = layer.Twinkle,
+        SparkSize = layer.SparkSize,
+        TrailSize = layer.TrailSize,
         ColorsText = string.Join(", ", layer.Colors),
     };
 
@@ -49,6 +61,8 @@ public partial class ParticleEffectLayerViewModel : ViewModelBase
         TrailSamples = Math.Clamp(TrailSamples, 0, 30),
         TrailSpacingSeconds = Math.Clamp(TrailSpacingSeconds, 0.005f, 0.5f),
         Twinkle = Math.Clamp(Twinkle, 0, 4),
+        SparkSize = Math.Clamp(SparkSize, 0.02f, 0.5f),
+        TrailSize = Math.Clamp(TrailSize, 0.01f, 0.3f),
         Colors = ColorsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
     };
 }

@@ -16,6 +16,9 @@ public class ShowPackageTests : IDisposable
         {
             Name = "Golden Willow",
             DurationMs = 4500,
+            PreviewImageData = [137, 80, 78, 71],
+            PreviewImageFileName = "willow.png",
+            VideoUrl = "https://www.youtube.com/watch?v=example",
             Effect = new FireworkEffect { Shape = BurstShape.Chrysanthemum, ParticleCount = 240 },
         };
         var show = new Show
@@ -65,6 +68,9 @@ public class ShowPackageTests : IDisposable
         Assert.Equal(firework.Name, loaded.Library[0].Name);
         Assert.Equal(BurstShape.Chrysanthemum, loaded.Library[0].Effect.Shape);
         Assert.Equal(240, loaded.Library[0].Effect.ParticleCount);
+        Assert.Equal(firework.PreviewImageData, loaded.Library[0].PreviewImageData);
+        Assert.Equal("willow.png", loaded.Library[0].PreviewImageFileName);
+        Assert.Equal(firework.VideoUrl, loaded.Library[0].VideoUrl);
 
         var loadedCue = Assert.IsType<FireCue>(loaded.Tracks[0].Clips[0]);
         Assert.Equal(3, loadedCue.Port);

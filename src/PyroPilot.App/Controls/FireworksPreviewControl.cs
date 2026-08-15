@@ -2,6 +2,7 @@ using System.Numerics;
 using Avalonia;
 using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
+using Avalonia.Controls;
 using PyroPilot.Core.Model;
 using PyroPilot.Core.Simulation;
 using Silk.NET.OpenGL;
@@ -23,6 +24,8 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
     private uint _program;
     private uint _vertexBuffer;
     private int _viewProjectionLocation;
+    private int _pointScaleLocation;
+    private int _alphaScaleLocation;
 
     public Show? Show
     {
@@ -46,28 +49,50 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
         _gl = GL.GetApi(glInterface.GetProcAddress);
         _program = CreateProgram(_gl, VertexShaderSource, FragmentShaderSource);
         _viewProjectionLocation = _gl.GetUniformLocation(_program, "uViewProjection");
+        _pointScaleLocation = _gl.GetUniformLocation(_program, "uPointScale");
+        _alphaScaleLocation = _gl.GetUniformLocation(_program, "uAlphaScale");
 
         _vertexBuffer = _gl.GenBuffer();
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vertexBuffer);
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
+        // Desktop OpenGL ignores gl_PointSize from the vertex shader unless
+        // programmable point sizing is explicitly enabled. Without this, every
+        // outer star is a nearly invisible 1 px dot and additive overlap at the
+        // origin is the only visible feature, which reads as an implosion.
+        _gl.Enable(EnableCap.ProgramPointSize);
     }
 
     protected override void OnOpenGlRender(GlInterface glInterface, int framebuffer)
     {
         if (_gl is null) return;
 
-        uint width = (uint)Math.Max(1, Bounds.Width);
-        uint height = (uint)Math.Max(1, Bounds.Height);
+        double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1d;
+        uint width = (uint)Math.Max(1, Math.Round(Bounds.Width * renderScaling));
+        uint height = (uint)Math.Max(1, Math.Round(Bounds.Height * renderScaling));
         _gl.Viewport(0, 0, width, height);
         _gl.ClearColor(0.005f, 0.01f, 0.03f, 1f);
         _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
+        // Keep the OpenGL surface alive even on an intentionally empty frame
+        // (before launch, between delayed layers, or after the final star). If
+        // scheduling happens only after DrawArrays, the first empty frame stops
+        // the render loop permanently while the bound timeline clock keeps moving.
+        RequestNextFrameRendering();
+
         float[] vertices = BuildVertices();
         if (vertices.Length == 0) return;
 
-        Matrix4x4 view = Matrix4x4.CreateLookAt(new Vector3(0, 18, -55), new Vector3(0, 20, 20), Vector3.UnitY);
-        Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, width / (float)height, 0.1f, 300f);
+        (float cameraTargetY, float cameraDistance) = CalculateCameraFraming();
+        Matrix4x4 view = Matrix4x4.CreateLookAt(
+            new Vector3(0, cameraTargetY, -cameraDistance),
+            new Vector3(0, cameraTargetY, 0),
+            Vector3.UnitY);
+        Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(
+            MathF.PI / 3f,
+            width / (float)height,
+            0.1f,
+            Math.Max(300f, cameraDistance * 4f));
         // System.Numerics uses row-vector/row-major conventions while GLSL reads
         // uniform matrices as column-major. GLES requires transpose=false, so
         // transpose the combined matrix on the CPU before uploading it.
@@ -85,8 +110,15 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
         _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, (void*)(3 * sizeof(float)));
         _gl.EnableVertexAttribArray(2);
         _gl.VertexAttribPointer(2, 1, VertexAttribPointerType.Float, false, stride, (void*)(7 * sizeof(float)));
-        _gl.DrawArrays(PrimitiveType.Points, 0, (uint)(vertices.Length / FloatsPerVertex));
-        RequestNextFrameRendering();
+        uint particleCount = (uint)(vertices.Length / FloatsPerVertex);
+        // A wide, faint additive pass supplies bloom without requiring a
+        // framebuffer post-process; the tight pass restores the incandescent core.
+        _gl.Uniform1(_pointScaleLocation, 2.8f);
+        _gl.Uniform1(_alphaScaleLocation, 0.22f);
+        _gl.DrawArrays(PrimitiveType.Points, 0, particleCount);
+        _gl.Uniform1(_pointScaleLocation, 1f);
+        _gl.Uniform1(_alphaScaleLocation, 1f);
+        _gl.DrawArrays(PrimitiveType.Points, 0, particleCount);
     }
 
     protected override void OnOpenGlDeinit(GlInterface glInterface)
@@ -127,10 +159,34 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
             data[offset + 4] = color.Y;
             data[offset + 5] = color.Z;
             data[offset + 6] = color.W;
-            data[offset + 7] = Math.Clamp(particle.Size * 70f, 2.5f, 18f);
+            data[offset + 7] = Math.Clamp(particle.Size * 90f, 1.25f, 28f);
         }
 
         return data;
+    }
+
+    private (float TargetY, float Distance) CalculateCameraFraming()
+    {
+        float highestPoint = 75f;
+        if (Show is not null)
+        {
+            foreach (FireworkDefinition definition in Show.Library)
+            {
+                FireworkEffect effect = definition.Effect;
+                float burstHeight = effect.LaunchSpeed * effect.BurstTimeSeconds
+                    - 0.5f * effect.Gravity * effect.BurstTimeSeconds * effect.BurstTimeSeconds;
+                float largestBurst = effect.Layers.Count == 0
+                    ? effect.BurstSpeed * effect.ParticleLifetimeSeconds
+                    : effect.Layers.Max(layer => layer.Speed * Math.Min(layer.LifetimeSeconds, 4f));
+                highestPoint = Math.Max(highestPoint, burstHeight + largestBurst + 12f);
+            }
+        }
+
+        // Frame the launch point and the full crown of the largest break. Point
+        // sprites retain their pixel size, so zooming out does not erase the stars.
+        float targetY = highestPoint * 0.5f;
+        float distance = Math.Max(75f, highestPoint * 1.08f);
+        return (targetY, distance);
     }
 
     private static Vector4 ParseColor(string value, float brightness)
@@ -188,12 +244,14 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
         attribute vec4 aColor;
         attribute float aPointSize;
         uniform mat4 uViewProjection;
+        uniform float uPointScale;
+        uniform float uAlphaScale;
         varying vec4 vColor;
         void main()
         {
             gl_Position = uViewProjection * vec4(aPosition, 1.0);
-            gl_PointSize = aPointSize;
-            vColor = aColor;
+            gl_PointSize = aPointSize * uPointScale;
+            vColor = vec4(aColor.rgb, aColor.a * uAlphaScale);
         }
         """;
 
@@ -206,8 +264,11 @@ public sealed unsafe class FireworksPreviewControl : OpenGlControlBase
             vec2 p = gl_PointCoord * 2.0 - 1.0;
             float radius = dot(p, p);
             if (radius > 1.0) discard;
-            float glow = exp(-3.5 * radius);
-            gl_FragColor = vec4(vColor.rgb * (0.6 + glow), vColor.a * glow);
+            float halo = exp(-3.8 * radius);
+            float core = exp(-18.0 * radius);
+            float alpha = vColor.a * (halo * 0.72 + core);
+            vec3 incandescent = mix(vColor.rgb, vec3(1.0), core * 0.78);
+            gl_FragColor = vec4(incandescent * (0.55 + core * 1.8), alpha);
         }
         """;
 }

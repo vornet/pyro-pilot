@@ -6,6 +6,8 @@ public enum BurstShape
     Chrysanthemum,
     Ring,
     Palm,
+    Willow,
+    Dahlia,
 }
 
 /// <summary>
@@ -45,5 +47,9 @@ public sealed class ParticleEffectLayer
     public int TrailSamples { get; set; } = 5;
     public float TrailSpacingSeconds { get; set; } = 0.045f;
     public float Twinkle { get; set; }
+    /// <summary>Diameter of the bright star head in world metres.</summary>
+    public float SparkSize { get; set; } = 0.17f;
+    /// <summary>Diameter of each historical trail sample in world metres.</summary>
+    public float TrailSize { get; set; } = 0.032f;
     public string[] Colors { get; set; } = ["#FF7A00"];
 }

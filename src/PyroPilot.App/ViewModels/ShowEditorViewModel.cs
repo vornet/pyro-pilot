@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NAudio.Wave;
@@ -23,6 +24,7 @@ public partial class ShowEditorViewModel : ViewModelBase
     private readonly HashSet<Guid> _firedThisRun = [];
     private DateTime _lastTickUtc;
     private string? _loadedAudioFileName;
+    private readonly Dictionary<Guid, Bitmap> _previewImages = [];
 
     public LibraryViewModel Library { get; }
     public DevicesViewModel Devices { get; }
@@ -30,6 +32,29 @@ public partial class ShowEditorViewModel : ViewModelBase
     public ObservableCollection<TrackViewModel> Tracks { get; } = [];
     public ObservableCollection<PreviewBurstViewModel> Bursts { get; } = [];
     public Show PreviewShow => _workspace.Show;
+    public Bitmap? ActivePreviewImage
+    {
+        get
+        {
+            FireCue? cue = _workspace.Show.Tracks
+                .Where(track => track.Kind == TrackKind.Fire && !track.Muted)
+                .SelectMany(track => track.Clips)
+                .OfType<FireCue>()
+                .LastOrDefault(item => CurrentTimeMs >= item.StartMs && CurrentTimeMs < item.EndMs);
+            return cue is not null && _previewImages.TryGetValue(cue.FireworkDefinitionId, out Bitmap? image) ? image : null;
+        }
+    }
+    public bool HasActivePreviewImage => ActivePreviewImage is not null;
+    public string ActivePreviewLabel
+    {
+        get
+        {
+            FireCue? cue = _workspace.Show.Tracks.SelectMany(track => track.Clips).OfType<FireCue>()
+                .LastOrDefault(item => CurrentTimeMs >= item.StartMs && CurrentTimeMs < item.EndMs);
+            if (cue is null) return "No firework active";
+            return _workspace.Show.Library.FirstOrDefault(item => item.Id == cue.FireworkDefinitionId)?.Name ?? cue.Label;
+        }
+    }
 
     [ObservableProperty]
     private string _showName = "New Show";
@@ -109,7 +134,15 @@ public partial class ShowEditorViewModel : ViewModelBase
         ShowName = _workspace.Show.Name;
         FilePath = _workspace.FilePath;
         _loadedAudioFileName = null;
+        foreach (Bitmap image in _previewImages.Values) image.Dispose();
+        _previewImages.Clear();
+        foreach (FireworkDefinition definition in _workspace.Show.Library.Where(item => item.PreviewImageData is not null))
+        {
+            try { _previewImages[definition.Id] = new Bitmap(new MemoryStream(definition.PreviewImageData!)); }
+            catch { /* A corrupt optional image must not prevent opening a show. */ }
+        }
         OnPropertyChanged(nameof(PreviewShow));
+        NotifyMediaPreviewChanged();
         NotifyDurationChanged();
     }
 
@@ -130,7 +163,18 @@ public partial class ShowEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(PlayheadX));
     }
 
-    partial void OnCurrentTimeMsChanged(int value) => OnPropertyChanged(nameof(PlayheadX));
+    partial void OnCurrentTimeMsChanged(int value)
+    {
+        OnPropertyChanged(nameof(PlayheadX));
+        NotifyMediaPreviewChanged();
+    }
+
+    private void NotifyMediaPreviewChanged()
+    {
+        OnPropertyChanged(nameof(ActivePreviewImage));
+        OnPropertyChanged(nameof(HasActivePreviewImage));
+        OnPropertyChanged(nameof(ActivePreviewLabel));
+    }
 
     private void NotifyDurationChanged()
     {
@@ -313,6 +357,9 @@ public partial class ShowEditorViewModel : ViewModelBase
             Category = source.Category,
             DurationMs = source.DurationMs,
             ColorHex = source.ColorHex,
+            PreviewImageData = source.PreviewImageData?.ToArray(),
+            PreviewImageFileName = source.PreviewImageFileName,
+            VideoUrl = source.VideoUrl,
             Effect = new FireworkEffect
             {
                 Shape = effect.Shape,
@@ -337,6 +384,8 @@ public partial class ShowEditorViewModel : ViewModelBase
                     TrailSamples = layer.TrailSamples,
                     TrailSpacingSeconds = layer.TrailSpacingSeconds,
                     Twinkle = layer.Twinkle,
+                    SparkSize = layer.SparkSize,
+                    TrailSize = layer.TrailSize,
                     Colors = [.. layer.Colors],
                 }).ToList(),
             },

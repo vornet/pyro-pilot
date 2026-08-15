@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PyroPilot.App.Services;
@@ -7,38 +9,36 @@ using PyroPilot.Core.Persistence;
 
 namespace PyroPilot.App.ViewModels;
 
-/// <summary>CRUD screen for the operator's global firework library (see PyroPilot.Core.Persistence.FireworkLibraryStore).</summary>
+/// <summary>A simple media-first catalog of real firework products.</summary>
 public partial class LibraryViewModel : ViewModelBase
 {
+    private const int MaximumImageBytes = 15 * 1024 * 1024;
+    private byte[]? _editPreviewImageData;
+    private FireworkEffect _editEffect = new();
+
     public ObservableCollection<FireworkDefinition> Fireworks { get; } = [];
-    public ObservableCollection<ParticleEffectLayerViewModel> EditLayers { get; } = [];
     public string[] CommonCategories { get; } = ["Cake", "Shell", "Fountain", "Roman Candle", "Mine", "Uncategorized"];
 
-    [ObservableProperty]
-    private FireworkDefinition? _selected;
+    [ObservableProperty] private FireworkDefinition? _selected;
+    [ObservableProperty] private string _editName = "New Firework";
+    [ObservableProperty] private string _editCategory = "Uncategorized";
+    [ObservableProperty] private int _editDurationMs = 3000;
+    [ObservableProperty] private string _editColorHex = "#FF7A00";
+    [ObservableProperty] private string? _editDescription;
+    [ObservableProperty] private string? _editPreviewImageFileName;
+    [ObservableProperty] private Bitmap? _editPreviewImage;
+    [ObservableProperty] private string? _editVideoUrl;
+    [ObservableProperty] private string? _mediaStatus;
 
-    [ObservableProperty]
-    private string _editName = "New Firework";
-
-    [ObservableProperty]
-    private string _editCategory = "Uncategorized";
-
-    [ObservableProperty]
-    private int _editDurationMs = 3000;
-
-    [ObservableProperty]
-    private string _editColorHex = "#FF7A00";
-
-    [ObservableProperty]
-    private string? _editDescription;
-
-    [ObservableProperty]
-    private ParticleEffectLayerViewModel? _selectedLayer;
+    public bool HasPreviewImage => EditPreviewImage is not null;
+    public bool HasVideoUrl => Uri.TryCreate(EditVideoUrl, UriKind.Absolute, out Uri? uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
     public LibraryViewModel()
     {
-        foreach (FireworkDefinition fw in FireworkLibraryStore.Load(AppPaths.LibraryFilePath))
-            Fireworks.Add(fw);
+        foreach (FireworkDefinition firework in FireworkLibraryStore.Load(AppPaths.LibraryFilePath))
+            Fireworks.Add(firework);
+        New();
     }
 
     [RelayCommand]
@@ -50,9 +50,10 @@ public partial class LibraryViewModel : ViewModelBase
         EditDurationMs = 3000;
         EditColorHex = "#FF7A00";
         EditDescription = null;
-        EditLayers.Clear();
-        EditLayers.Add(new ParticleEffectLayerViewModel());
-        SelectedLayer = EditLayers[0];
+        EditVideoUrl = null;
+        _editEffect = new FireworkEffect();
+        SetPreviewImage(null, null);
+        MediaStatus = null;
     }
 
     [RelayCommand]
@@ -60,34 +61,20 @@ public partial class LibraryViewModel : ViewModelBase
     {
         if (Selected is null)
         {
-            var created = new FireworkDefinition
-            {
-                Name = EditName,
-                Category = EditCategory,
-                DurationMs = EditDurationMs,
-                ColorHex = EditColorHex,
-                Description = EditDescription,
-                Effect = BuildEffect(),
-            };
+            var created = new FireworkDefinition();
+            ApplyEdits(created);
             Fireworks.Add(created);
             Selected = created;
         }
         else
         {
-            Selected.Name = EditName;
-            Selected.Category = EditCategory;
-            Selected.DurationMs = EditDurationMs;
-            Selected.ColorHex = EditColorHex;
-            Selected.Description = EditDescription;
-            Selected.Effect = BuildEffect();
-
-            // FireworkDefinition isn't a notifying type -- re-assigning through
-            // the indexer forces the bound list's display to refresh for this item.
+            ApplyEdits(Selected);
             int index = Fireworks.IndexOf(Selected);
             if (index >= 0) Fireworks[index] = Selected;
         }
 
         Persist();
+        MediaStatus = "Saved";
     }
 
     [RelayCommand]
@@ -98,6 +85,31 @@ public partial class LibraryViewModel : ViewModelBase
         Persist();
     }
 
+    [RelayCommand]
+    private void RemoveImage()
+    {
+        SetPreviewImage(null, null);
+        MediaStatus = "Image removed. Save to keep this change.";
+    }
+
+    [RelayCommand]
+    private void OpenVideo()
+    {
+        if (!HasVideoUrl) return;
+        Process.Start(new ProcessStartInfo(EditVideoUrl!) { UseShellExecute = true });
+    }
+
+    public void ImportImage(string path)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists) throw new FileNotFoundException("The selected image no longer exists.", path);
+        if (info.Length > MaximumImageBytes) throw new InvalidDataException("Choose an image smaller than 15 MB.");
+
+        byte[] data = File.ReadAllBytes(path);
+        SetPreviewImage(data, info.Name);
+        MediaStatus = $"Attached {info.Name}. Save to keep it.";
+    }
+
     partial void OnSelectedChanged(FireworkDefinition? value)
     {
         if (value is null) return;
@@ -106,56 +118,34 @@ public partial class LibraryViewModel : ViewModelBase
         EditDurationMs = value.DurationMs;
         EditColorHex = value.ColorHex;
         EditDescription = value.Description;
-        EditLayers.Clear();
-        IEnumerable<ParticleEffectLayer> layers = value.Effect.Layers.Count > 0
-            ? value.Effect.Layers
-            : [new ParticleEffectLayer
-            {
-                Shape = value.Effect.Shape,
-                Speed = value.Effect.BurstSpeed,
-                LifetimeSeconds = value.Effect.ParticleLifetimeSeconds,
-                ParticleCount = value.Effect.ParticleCount,
-                Gravity = value.Effect.Gravity,
-                Drag = value.Effect.Drag,
-                Colors = value.Effect.Colors,
-            }];
-        foreach (ParticleEffectLayer layer in layers)
-            EditLayers.Add(ParticleEffectLayerViewModel.FromModel(layer));
-        SelectedLayer = EditLayers.FirstOrDefault();
+        EditVideoUrl = value.VideoUrl;
+        _editEffect = value.Effect;
+        SetPreviewImage(value.PreviewImageData, value.PreviewImageFileName);
+        MediaStatus = null;
     }
 
-    [RelayCommand]
-    private void AddLayer()
+    partial void OnEditVideoUrlChanged(string? value) => OnPropertyChanged(nameof(HasVideoUrl));
+
+    private void ApplyEdits(FireworkDefinition target)
     {
-        var layer = new ParticleEffectLayerViewModel { Name = $"Layer {EditLayers.Count + 1}" };
-        EditLayers.Add(layer);
-        SelectedLayer = layer;
+        target.Name = string.IsNullOrWhiteSpace(EditName) ? "Unnamed Firework" : EditName.Trim();
+        target.Category = EditCategory;
+        target.DurationMs = Math.Max(100, EditDurationMs);
+        target.ColorHex = EditColorHex;
+        target.Description = EditDescription;
+        target.PreviewImageData = _editPreviewImageData?.ToArray();
+        target.PreviewImageFileName = EditPreviewImageFileName;
+        target.VideoUrl = string.IsNullOrWhiteSpace(EditVideoUrl) ? null : EditVideoUrl.Trim();
+        target.Effect = _editEffect;
     }
 
-    [RelayCommand]
-    private void RemoveLayer(ParticleEffectLayerViewModel? layer)
+    private void SetPreviewImage(byte[]? data, string? fileName)
     {
-        if (layer is null || EditLayers.Count <= 1) return;
-        int index = EditLayers.IndexOf(layer);
-        EditLayers.Remove(layer);
-        SelectedLayer = EditLayers[Math.Clamp(index, 0, EditLayers.Count - 1)];
-    }
-
-    private FireworkEffect BuildEffect()
-    {
-        List<ParticleEffectLayer> layers = EditLayers.Select(layer => layer.ToModel()).ToList();
-        ParticleEffectLayer primary = layers.FirstOrDefault() ?? new ParticleEffectLayer { Colors = [EditColorHex] };
-        return new FireworkEffect
-        {
-            Shape = primary.Shape,
-            BurstSpeed = primary.Speed,
-            ParticleLifetimeSeconds = primary.LifetimeSeconds,
-            ParticleCount = primary.ParticleCount,
-            Gravity = primary.Gravity,
-            Drag = primary.Drag,
-            Colors = primary.Colors.Length == 0 ? [EditColorHex] : primary.Colors,
-            Layers = layers,
-        };
+        EditPreviewImage?.Dispose();
+        _editPreviewImageData = data?.ToArray();
+        EditPreviewImageFileName = fileName;
+        EditPreviewImage = data is null ? null : new Bitmap(new MemoryStream(data));
+        OnPropertyChanged(nameof(HasPreviewImage));
     }
 
     private void Persist() => FireworkLibraryStore.Save(AppPaths.LibraryFilePath, Fireworks);
